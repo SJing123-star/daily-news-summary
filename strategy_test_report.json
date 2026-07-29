@@ -1,0 +1,154 @@
+{
+  "test_time": "2026-06-25T17:17:46.029110",
+  "total": 18,
+  "passed": 12,
+  "failed": 0,
+  "info": 6,
+  "partial": 0,
+  "results": [
+    {
+      "test_name": "查询策略列表",
+      "status": "PASS",
+      "expected": "返回策略列表",
+      "actual": "返回 3 个策略",
+      "details": "",
+      "timestamp": "2026-06-25T17:17:34.666316"
+    },
+    {
+      "test_name": "添加策略(测试策略)",
+      "status": "PASS",
+      "expected": "保存成功",
+      "actual": "保存成功",
+      "details": "",
+      "timestamp": "2026-06-25T17:17:34.686086"
+    },
+    {
+      "test_name": "验证策略参数(测试策略)",
+      "status": "PASS",
+      "expected": "所有参数正确",
+      "actual": "名称正确, 分词方式正确, 关键词正确, 停用词正确, 匹配模式正确",
+      "details": "",
+      "timestamp": "2026-06-25T17:17:36.974204"
+    },
+    {
+      "test_name": "修改策略(test_strategy)",
+      "status": "PASS",
+      "expected": "保存成功",
+      "actual": "保存成功",
+      "details": "",
+      "timestamp": "2026-06-25T17:17:36.993771"
+    },
+    {
+      "test_name": "验证更新(test_strategy)",
+      "status": "PASS",
+      "expected": "所有参数更新正确",
+      "actual": "name正确, threshold正确, keywords正确",
+      "details": "",
+      "timestamp": "2026-06-25T17:17:39.227481"
+    },
+    {
+      "test_name": "删除策略(test_strategy)",
+      "status": "PASS",
+      "expected": "保存成功",
+      "actual": "保存成功",
+      "details": "",
+      "timestamp": "2026-06-25T17:17:39.247064"
+    },
+    {
+      "test_name": "验证删除(test_strategy)",
+      "status": "PASS",
+      "expected": "策略已删除",
+      "actual": "策略已删除",
+      "details": "",
+      "timestamp": "2026-06-25T17:17:41.472123"
+    },
+    {
+      "test_name": "名称为空保存",
+      "status": "INFO",
+      "expected": "保存成功",
+      "actual": "保存成功（当前允许空名称）",
+      "details": "",
+      "timestamp": "2026-06-25T17:17:41.491445"
+    },
+    {
+      "test_name": "重复site_type保存",
+      "status": "INFO",
+      "expected": "保存成功",
+      "actual": "保存成功（会覆盖原有策略）",
+      "details": "",
+      "timestamp": "2026-06-25T17:17:41.511764"
+    },
+    {
+      "test_name": "添加策略(涉政中文)",
+      "status": "INFO",
+      "expected": "添加成功",
+      "actual": "添加成功",
+      "details": "",
+      "timestamp": "2026-06-25T17:17:43.764682"
+    },
+    {
+      "test_name": "添加策略(涉政英文)",
+      "status": "INFO",
+      "expected": "添加成功",
+      "actual": "添加成功",
+      "details": "",
+      "timestamp": "2026-06-25T17:17:43.764682"
+    },
+    {
+      "test_name": "策略已存在，更新(网络安全)",
+      "status": "INFO",
+      "expected": "更新成功",
+      "actual": "更新成功",
+      "details": "",
+      "timestamp": "2026-06-25T17:17:43.764682"
+    },
+    {
+      "test_name": "添加策略(科技)",
+      "status": "INFO",
+      "expected": "添加成功",
+      "actual": "添加成功",
+      "details": "",
+      "timestamp": "2026-06-25T17:17:43.764682"
+    },
+    {
+      "test_name": "保存四种策略",
+      "status": "PASS",
+      "expected": "保存成功",
+      "actual": "保存成功",
+      "details": "",
+      "timestamp": "2026-06-25T17:17:43.782530"
+    },
+    {
+      "test_name": "验证策略(涉政中文)",
+      "status": "PASS",
+      "expected": "全部验证通过",
+      "actual": "通过: 名称, 分词, 匹配模式, 关键词数量, 停用词数量, 高亮词数量",
+      "details": "",
+      "timestamp": "2026-06-25T17:17:46.029110"
+    },
+    {
+      "test_name": "验证策略(涉政英文)",
+      "status": "PASS",
+      "expected": "全部验证通过",
+      "actual": "通过: 名称, 分词, 匹配模式, 关键词数量, 停用词数量, 高亮词数量",
+      "details": "",
+      "timestamp": "2026-06-25T17:17:46.029110"
+    },
+    {
+      "test_name": "验证策略(网络安全)",
+      "status": "PASS",
+      "expected": "全部验证通过",
+      "actual": "通过: 名称, 分词, 匹配模式, 关键词数量, 停用词数量, 高亮词数量",
+      "details": "",
+      "timestamp": "2026-06-25T17:17:46.029110"
+    },
+    {
+      "test_name": "验证策略(科技)",
+      "status": "PASS",
+      "expected": "全部验证通过",
+      "actual": "通过: 名称, 分词, 匹配模式, 关键词数量, 停用词数量, 高亮词数量",
+      "details": "",
+      "timestamp": "2026-06-25T17:17:46.029110"
+    }
+  ]
+}
