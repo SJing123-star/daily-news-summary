@@ -1,0 +1,50 @@
+# 数据库文件
+news.db
+*.db
+
+# 环境变量配置（包含敏感信息）
+.env
+
+# 构建产物
+build/
+dist/
+*.spec
+
+# Python缓存
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+
+# 日志文件
+logs/
+*.log
+
+# 配置备份文件
+config.yaml.backup.*
+
+# 测试报告文件
+rematch_report_*.json
+strategy_test_report_*.json
+strategy_update_report_*.json
+performance_report.json
+
+# 编辑器配置
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+
+# 临时文件
+*.tmp
+*.bak
+
+# 自启动配置
+autostart_config.json
