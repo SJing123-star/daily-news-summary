@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>新闻详情 · 每日新闻速览</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=4">
+<script src="{{ url_for('static', filename='js/common.js') }}?v=1"></script>
+<script>
+        // API密钥通过用户配置或环境变量管理，不在前端硬编码
+    </script>
+</head>
+<body>
+<div class="container">
+    <header class="site-header compact">
+        <a href="{{ url_for('index', category=category) }}" class="back-link">← 返回「{{ category }}」新闻列表</a>
+        <h1 class="detail-title">{{ news.title }}</h1>
+        <div class="meta">
+            <span class="badge source">{{ news.source or '未知' }}</span>
+            {% if news.category %}
+            <a href="{{ url_for('index', category=news.category) }}" class="badge category" style="text-decoration:none;">{{ news.category }}</a>
+            {% endif %}
+            <span class="time">{{ news.publish_time or '时间未知' }}</span>
+        </div>
+        <p class="original-title">原始标题: {{ news.original_title }}</p>
+        <div class="external-link">
+            <a href="{{ news.url }}" target="_blank" rel="noopener noreferrer">🔗 查看原文</a>
+        </div>
+    </header>
+
+    <main>
+        <section class="summary-section">
+            <h2>📋 AI 一句话摘要</h2>
+            <p class="summary-text">{{ news.one_line_summary or '尚未生成摘要，可在列表页点击"重试待处理摘要"' }}</p>
+        </section>
+
+        <section class="analysis-section">
+            <h2>📊 选题分析</h2>
+            {% if news.is_analysis_done and news.analysis_brief %}
+            <div class="analysis-content" id="analysis-result"></div>
+            <div id="analysis-brief" style="display:none;">{{ news.analysis_brief }}</div>
+            {% else %}
+            <div id="analysis-box">
+                <p class="analysis-placeholder">点击下方按钮，AI 将从事件概况、背景解读、风险研判、应对策略四个维度进行专业选题分析。</p>
+                <button id="btn-analyze" class="btn btn-primary">🎯 选题分析</button>
+                <div id="analysis-result" style="display:none;" class="analysis-content"></div>
+                <div id="analysis-status" style="display:none;" class="status-msg info"></div>
+            </div>
+            {% endif %}
+        </section>
+
+        {% if news.content %}
+        <section class="content-section">
+            <h2>📄 原文抓取内容（节选）</h2>
+            <div class="original-content">
+                {% for para in news.content.split('\n') %}
+                    {% if para.strip() and para.strip()|length > 10 %}
+                    <p>{{ para.strip() }}</p>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+    </main>
+
+    <footer class="site-footer">
+        <p>AI 分析基于大语言模型生成 · 仅供参考 · 请核对原始信息</p>
+    </footer>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const analysisBrief = document.getElementById('analysis-brief');
+    const analysisResult = document.getElementById('analysis-result');
+    if (analysisBrief && analysisResult) {
+        const brief = analysisBrief.textContent.trim();
+        if (brief) {
+            analysisResult.innerHTML = formatAnalysisResult(brief);
+        }
+    }
+});
+
+const analyzeBtn = document.getElementById('btn-analyze');
+if (analyzeBtn) {
+    analyzeBtn.addEventListener('click', async function() {
+        const btn = this;
+        const statusEl = document.getElementById('analysis-status');
+        const resultEl = document.getElementById('analysis-result');
+
+        btn.disabled = true;
+        btn.textContent = '⏳ AI 正在分析中...（约需 20-40 秒）';
+        statusEl.style.display = 'block';
+        statusEl.textContent = '正在调用 LLM 进行选题分析，包含事件概况、背景解读、风险研判、应对策略...';
+
+        try {
+            const resp = await apiRequest('/api/analyze/{{ news.id }}', { method: 'POST' });
+            const data = await resp.json();
+            if (data.ok && data.brief) {
+                statusEl.style.display = 'none';
+                btn.style.display = 'none';
+                resultEl.style.display = 'block';
+                resultEl.innerHTML = formatAnalysisResult(data.brief);
+            } else {
+                statusEl.className = 'status-msg error';
+                statusEl.textContent = '❌ 分析失败: ' + (data.error || '请检查 LLM API Key 配置');
+                btn.disabled = false;
+                btn.textContent = '🎯 选题分析';
+            }
+        } catch (e) {
+            statusEl.className = 'status-msg error';
+            statusEl.textContent = '❌ 请求失败: ' + e.message;
+            btn.disabled = false;
+            btn.textContent = '🎯 选题分析';
+        }
+    });
+}
+
+function formatAnalysisResult(brief) {
+    const sections = {
+        '一、事件概况': 'event-overview',
+        '二、背景解读': 'background-analysis',
+        '三、风险研判': 'risk-assessment',
+        '四、应对策略': 'response-strategy'
+    };
+    
+    const icons = {
+        '一、事件概况': '📋',
+        '二、背景解读': '🔍',
+        '三、风险研判': '⚠️',
+        '四、应对策略': '💡'
+    };
+    
+    let currentSection = null;
+    let html = '<div class="analysis-container">';
+    
+    brief.split('\n').forEach(line => {
+        line = line.trim();
+        if (!line) return;
+        
+        let matched = false;
+        for (const [sectionTitle, className] of Object.entries(sections)) {
+            if (line.startsWith(sectionTitle) || line.endsWith(sectionTitle)) {
+                if (currentSection) {
+                    html += '</div>';
+                }
+                const icon = icons[sectionTitle] || '';
+                html += `<div class="analysis-section-card ${className}">`;
+                html += `<h3 class="analysis-section-title">${icon} ${sectionTitle}</h3>`;
+                currentSection = className;
+                matched = true;
+                break;
+            }
+        }
+        
+        if (!matched && currentSection) {
+            html += `<p class="analysis-section-text">${escapeHtml(line)}</p>`;
+        } else if (!matched && !currentSection) {
+            html += `<p>${escapeHtml(line)}</p>`;
+        }
+    });
+    
+    if (currentSection) {
+        html += '</div>';
+    }
+    html += '</div>';
+    
+    return html;
+}
+</script>
+</body>
+</html>
