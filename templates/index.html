@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>每日新闻速览</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=4">
+<script src="{{ url_for('static', filename='js/common.js') }}?v=1"></script>
+<script>
+    // API密钥通过用户配置或环境变量管理，不在前端硬编码
+</script>
+</head>
+<body>
+<div class="container">
+    <header class="site-header">
+        <div class="header-content">
+            <div class="header-left">
+                <h1>📰 每日新闻速览</h1>
+                <p class="subtitle">政治 · 经济 · 科技 · 网络安全 · 涉华新闻 · AI 智能摘要</p>
+            </div>
+            <nav class="nav">
+                <a href="{{ url_for('index') }}" class="nav-link active">📋 新闻列表</a>
+                <a href="{{ url_for('subscriptions') }}" class="nav-link">⚙️ 系统管理</a>
+            </nav>
+        </div>
+        <div class="stats-bar">
+            <span class="stat"><strong>{{ stats.total }}</strong> 条新闻</span>
+            <span class="stat"><strong>{{ stats.summarized }}</strong> 已摘要</span>
+            <span class="stat"><strong>{{ stats.analyzed }}</strong> 已深度分析</span>
+            <span class="stat muted">最近: {{ now }}</span>
+        </div>
+        <div class="action-bar">
+            <button id="btn-collect" class="btn btn-primary">🔄 立即抓取新新闻</button>
+            <button id="btn-matched" class="btn btn-success">🎯 匹配新闻</button>
+            <button id="btn-retry" class="btn btn-secondary">⏰ 重试待处理摘要</button>
+            <button id="btn-rematch" class="btn btn-warning">🔍 重新匹配关键词</button>
+            <button id="btn-clear" class="btn btn-danger">🗑️ 清空旧数据</button>
+            <button id="btn-autostart" class="btn btn-outline">🚀 自启动设置</button>
+        </div>
+        <div class="category-bar">
+            <a href="{{ url_for('index') }}" class="cat-tab {% if current_category == 'all' %}active{% endif %}">
+                全部 <span class="cat-count">({{ stats.total }})</span>
+            </a>
+            {% for cat in categories %}
+            <a href="{{ url_for('index', category=cat) }}" class="cat-tab {% if current_category == cat %}active{% endif %}">
+                {{ cat }} <span class="cat-count">({{ category_counts.get(cat, 0) }})</span>
+            </a>
+            {% endfor %}
+        </div>
+        <div class="date-filter-bar">
+            <div class="date-filter">
+                <label for="filter-start-date">开始日期</label>
+                <input type="date" id="filter-start-date">
+            </div>
+            <span class="date-separator">至</span>
+            <div class="date-filter">
+                <label for="filter-end-date">结束日期</label>
+                <input type="date" id="filter-end-date">
+            </div>
+            <button id="btn-date-filter" class="btn btn-secondary">🔍 筛选</button>
+            <button id="btn-date-clear" class="btn btn-clear">✖️ 清除</button>
+        </div>
+        <div id="status" class="status-msg" style="display:none;"></div>
+    </header>
+
+    <main>
+        {% if news_list %}
+        <div class="news-list">
+            {% for news in news_list %}
+            {% set is_highlighted = news.is_highlighted or news.is_strategy_matched %}
+            {% set highlight_type = '策略匹配' if news.is_strategy_matched else '关键词命中' %}
+            <div class="news-card {% if is_highlighted %}highlighted{% endif %}">
+                <div class="card-header">
+                    <div class="card-badges">
+                        {% if is_highlighted %}
+                        <span class="badge highlight-badge">🔥</span>
+                        {% endif %}
+                        <span class="badge category cat-{{ news.category or '国际' }}">{{ news.category or '国际' }}</span>
+                        {% if is_highlighted %}
+                        <span class="badge keyword-highlight">{{ highlight_type }}</span>
+                        {% endif %}
+                        {% if news.is_analysis_done %}
+                        <span class="badge analyzed">✓ 已深度分析</span>
+                        {% endif %}
+                    </div>
+                    <a href="{{ url_for('news_detail', news_id=news.id) }}" class="news-link">
+                        <h2 class="news-title">{{ news.title }}</h2>
+                    </a>
+                </div>
+                <div class="card-body">
+                    {% if news.title != news.original_title %}
+                    <p class="original-title"><span class="label">原文标题:</span> {{ news.original_title }}</p>
+                    {% endif %}
+                    <p class="news-summary">{{ news.one_line_summary }}</p>
+                </div>
+                <div class="card-footer">
+                    <div class="card-meta">
+                        <span class="meta-item">
+                            <span class="meta-icon">📡</span>
+                            <span class="meta-label">来源:</span>
+                            <span class="meta-value">{{ news.source or '未知' }}</span>
+                        </span>
+                        <span class="meta-item">
+                            <span class="meta-icon">🕐</span>
+                            <span class="meta-label">时间:</span>
+                            <span class="meta-value">{{ news.publish_time or '时间未知' }}</span>
+                        </span>
+                    </div>
+                    <a href="{{ url_for('news_detail', news_id=news.id) }}" class="read-more">
+                        查看详情 →
+                    </a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <h2>{% if current_category != 'all' %}{{ current_category }}分类暂无新闻{% else %}👋 欢迎使用{% endif %}</h2>
+            <p>{% if current_category != 'all' %}当前分类尚未抓取到新闻，可切换到其他分类或点击抓取按钮。{% else %}目前数据库中还没有新闻。{% endif %}</p>
+            <p>点击上方 <strong>立即抓取新新闻</strong> 开始收集国内外大事。</p>
+            <p class="tip">监控源: {{ sources|join(' / ') }}</p>
+        </div>
+        {% endif %}
+
+        {% if total_pages > 1 %}
+        <div class="pagination">
+            <div class="pagination-info">
+                显示第 {{ ((page - 1) * page_size) + 1 }} - {{ (page * page_size) if (page * page_size) <= total else total }} 条，共 {{ total }} 条
+            </div>
+            <div class="pagination-controls">
+                <a href="{{ url_for('index', category=current_category, matched=matched_only, page=1) }}" class="page-btn {% if page == 1 %}disabled{% endif %}">
+                    ⏮ 首页
+                </a>
+                <a href="{{ url_for('index', category=current_category, matched=matched_only, page=page-1) }}" class="page-btn {% if page == 1 %}disabled{% endif %}">
+                    ⬅ 上一页
+                </a>
+                {% for p in range(1, total_pages + 1) %}
+                    {% if p <= 3 or (p >= page - 1 and p <= page + 1) or p >= total_pages - 2 %}
+                        <a href="{{ url_for('index', category=current_category, matched=matched_only, page=p) }}" class="page-btn {% if p == page %}active{% endif %}">
+                            {{ p }}
+                        </a>
+                        {% if p == 3 and page > 5 %}
+                            <span class="page-dots">...</span>
+                        {% endif %}
+                        {% if p == page + 1 and page < total_pages - 3 %}
+                            <span class="page-dots">...</span>
+                        {% endif %}
+                    {% endif %}
+                {% endfor %}
+                <a href="{{ url_for('index', category=current_category, matched=matched_only, page=page+1) }}" class="page-btn {% if page == total_pages %}disabled{% endif %}">
+                    下一页 ➡
+                </a>
+                <a href="{{ url_for('index', category=current_category, matched=matched_only, page=total_pages) }}" class="page-btn {% if page == total_pages %}disabled{% endif %}">
+                    末页 ⏭
+                </a>
+            </div>
+        </div>
+        {% endif %}
+    </main>
+
+    <footer class="site-footer">
+        <p>数据来源: 各主流新闻媒体 RSS · 内容分析由 AI 生成 · 仅供个人阅读参考</p>
+    </footer>
+</div>
+
+<script>
+let progressInterval = null;
+
+function getStatusIcon(status) {
+    const icons = {
+        idle: '📋',
+        fetching: '🔍',
+        saving: '💾',
+        summarizing: '🤖',
+        completed: '✅',
+        error: '❌',
+    };
+    return icons[status] || '⏳';
+}
+
+function getStatusClass(status) {
+    const classes = {
+        idle: 'info',
+        fetching: 'info',
+        saving: 'info',
+        summarizing: 'info',
+        completed: 'success',
+        error: 'error',
+    };
+    return classes[status] || 'info';
+}
+
+document.getElementById('btn-collect').addEventListener('click', async function() {
+    const btn = this;
+    const status = document.getElementById('status');
+    btn.disabled = true;
+    btn.textContent = '⏳ 正在抓取中...';
+    status.style.display = 'block';
+    status.className = 'status-msg info';
+    status.innerHTML = '<div class="progress-container"><div class="progress-bar"><div class="progress-fill" style="width: 0%"></div></div><span class="progress-text">0%</span></div><p>开始抓取新闻源...</p>';
+
+    try {
+        const resp = await apiRequest('/api/collect', { method: 'POST' });
+        const data = await resp.json();
+        if (!data.ok) {
+            status.className = 'status-msg error';
+            status.textContent = '❌ 错误: ' + (data.error || '未知错误');
+            btn.disabled = false;
+            btn.textContent = '🔄 立即抓取新新闻';
+            return;
+        }
+
+        if (progressInterval) {
+            clearInterval(progressInterval);
+        }
+
+        progressInterval = setInterval(async function() {
+            try {
+                const resp = await apiRequest('/api/collect/progress');
+                const progress = await resp.json();
+
+                const icon = getStatusIcon(progress.status);
+                const className = getStatusClass(progress.status);
+
+                status.className = `status-msg ${className}`;
+                status.innerHTML = `
+                    <div class="progress-container">
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: ${progress.progress}%"></div>
+                        </div>
+                        <span class="progress-text">${progress.progress}%</span>
+                    </div>
+                    <p>${icon} ${progress.message}</p>
+                `;
+
+                if (progress.status === 'completed' || progress.status === 'error') {
+                    clearInterval(progressInterval);
+                    progressInterval = null;
+                    btn.disabled = false;
+                    btn.textContent = '🔄 立即抓取新新闻';
+
+                    if (progress.status === 'completed') {
+                        setTimeout(() => location.reload(), 2000);
+                    }
+                }
+            } catch (e) {
+                console.error('获取进度失败:', e);
+            }
+        }, 1500);
+
+    } catch (e) {
+        status.className = 'status-msg error';
+        status.textContent = '❌ 请求失败: ' + e.message;
+        btn.disabled = false;
+        btn.textContent = '🔄 立即抓取新新闻';
+    }
+});
+
+document.getElementById('btn-matched').addEventListener('click', function() {
+    const currentUrl = new URL(window.location.href);
+    const matched = currentUrl.searchParams.get('matched');
+    if (matched === 'true') {
+        currentUrl.searchParams.delete('matched');
+        currentUrl.searchParams.set('page', '1');
+    } else {
+        currentUrl.searchParams.set('matched', 'true');
+        currentUrl.searchParams.set('page', '1');
+    }
+    window.location.href = currentUrl.toString();
+});
+
+document.getElementById('btn-retry').addEventListener('click', async function() {
+    const btn = this;
+    const status = document.getElementById('status');
+    btn.disabled = true;
+    btn.textContent = '⏳ 处理中...';
+    status.style.display = 'block';
+
+    try {
+        const resp = await apiRequest('/api/retry', { method: 'POST' });
+        const data = await resp.json();
+        if (data.ok) {
+            status.className = 'status-msg success';
+            status.textContent = `✅ 成功重新处理 ${data.count} 条待处理新闻，页面即将刷新...`;
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            status.className = 'status-msg error';
+            status.textContent = '❌ 错误: ' + (data.error || '未知错误');
+        }
+    } catch (e) {
+        status.className = 'status-msg error';
+        status.textContent = '❌ 请求失败: ' + e.message;
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '⏰ 重试待处理摘要';
+    }
+});
+
+document.getElementById('btn-clear').addEventListener('click', async function() {
+    const confirmText = prompt('⚠️ 危险操作！\n\n确定要清空所有新闻数据吗？\n此操作不可撤销！\n\n请输入 "确认清空" 四个字以继续：');
+    if (confirmText !== '确认清空') {
+        return;
+    }
+    const btn = this;
+    const status = document.getElementById('status');
+    btn.disabled = true;
+    btn.textContent = '⏳ 清空中...';
+    status.style.display = 'block';
+
+    try {
+        const resp = await apiRequest('/api/clear', { 
+            method: 'POST',
+            body: { confirm: true }
+        });
+        const data = await resp.json();
+        if (data.ok) {
+            status.className = 'status-msg success';
+            status.textContent = '✅ 数据已清空，页面即将刷新...';
+            setTimeout(() => location.reload(), 1500);
+        } else {
+            status.className = 'status-msg error';
+            status.textContent = '❌ 错误: ' + (data.error || '未知错误');
+        }
+    } catch (e) {
+        status.className = 'status-msg error';
+        status.textContent = '❌ 请求失败: ' + e.message;
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🗑️ 清空旧数据';
+    }
+});
+
+document.getElementById('btn-date-filter').addEventListener('click', async function() {
+    const startDate = document.getElementById('filter-start-date').value;
+    const endDate = document.getElementById('filter-end-date').value;
+    const status = document.getElementById('status');
+    const btn = this;
+
+    if (!startDate || !endDate) {
+        status.style.display = 'block';
+        status.className = 'status-msg error';
+        status.textContent = '❌ 请选择开始日期和结束日期';
+        return;
+    }
+
+    if (startDate > endDate) {
+        status.style.display = 'block';
+        status.className = 'status-msg error';
+        status.textContent = '❌ 开始日期不能大于结束日期';
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = '⏳ 筛选中...';
+    status.style.display = 'block';
+    status.className = 'status-msg info';
+    status.textContent = '🔍 正在查询指定日期范围的新闻...';
+
+    try {
+        const category = document.querySelector('.cat-tab.active')?.textContent.split(' ')[0] || 'all';
+        const url = new URL('/api/news/filter', window.location.origin);
+        url.searchParams.set('start_date', startDate);
+        url.searchParams.set('end_date', endDate);
+        if (category !== '全部' && category !== 'all') {
+            url.searchParams.set('category', category);
+        }
+
+        const resp = await apiRequest(url);
+        const data = await resp.json();
+
+        if (data.ok) {
+            renderNewsList(data.news);
+            status.className = 'status-msg success';
+            status.textContent = `✅ 筛选完成，共找到 ${data.count} 条新闻`;
+        } else {
+            status.className = 'status-msg error';
+            status.textContent = '❌ 筛选失败: ' + (data.error || '未知错误');
+        }
+    } catch (e) {
+        status.className = 'status-msg error';
+        status.textContent = '❌ 请求失败: ' + e.message;
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🔍 筛选';
+    }
+});
+
+document.getElementById('btn-date-clear').addEventListener('click', function() {
+    document.getElementById('filter-start-date').value = '';
+    document.getElementById('filter-end-date').value = '';
+    location.reload();
+});
+
+let rematchProgressInterval = null;
+
+document.getElementById('btn-rematch').addEventListener('click', async function() {
+    const btn = this;
+    const status = document.getElementById('status');
+    btn.disabled = true;
+    btn.textContent = '⏳ 匹配中...';
+    status.style.display = 'block';
+    status.className = 'status-msg info';
+    status.innerHTML = '<div class="progress-container"><div class="progress-bar"><div class="progress-fill" style="width: 0%"></div></div><span class="progress-text">0%</span></div><p>开始重新匹配关键词...</p>';
+
+    try {
+        const resp = await apiRequest('/api/rematch', { method: 'POST' });
+        const data = await resp.json();
+        if (!data.ok) {
+            status.className = 'status-msg error';
+            status.textContent = '❌ 错误: ' + (data.error || '未知错误');
+            btn.disabled = false;
+            btn.textContent = '🔍 重新匹配关键词';
+            return;
+        }
+
+        if (rematchProgressInterval) {
+            clearInterval(rematchProgressInterval);
+        }
+
+        rematchProgressInterval = setInterval(async function() {
+            try {
+                const resp = await apiRequest('/api/rematch/progress');
+                const progress = await resp.json();
+
+                const icon = getStatusIcon(progress.status);
+                const className = getStatusClass(progress.status);
+
+                status.className = `status-msg ${className}`;
+                
+                let progressHtml = '';
+                if (progress.status === 'running') {
+                    const stats = progress.stats || {};
+                    progressHtml = `
+                        <div class="progress-container">
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${progress.progress}%"></div>
+                            </div>
+                            <span class="progress-text">${progress.progress}%</span>
+                        </div>
+                        <p>${icon} ${progress.message}</p>
+                        ${stats.total ? `
+                            <div class="stats-grid">
+                                <div class="stat-item"><span class="stat-label">总数</span><span class="stat-num">${stats.total}</span></div>
+                                <div class="stat-item success"><span class="stat-label">匹配</span><span class="stat-num">${stats.matched || 0}</span></div>
+                                <div class="stat-item error"><span class="stat-label">未匹配</span><span class="stat-num">${stats.not_matched || 0}</span></div>
+                                <div class="stat-item warning"><span class="stat-label">变更</span><span class="stat-num">${stats.updated || 0}</span></div>
+                            </div>
+                        ` : ''}
+                        <button id="btn-cancel-rematch" class="btn btn-danger" style="margin-top: 10px;">⏹️ 中断匹配</button>
+                    `;
+                } else {
+                    progressHtml = `
+                        <div class="progress-container">
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${progress.progress}%"></div>
+                            </div>
+                            <span class="progress-text">${progress.progress}%</span>
+                        </div>
+                        <p>${icon} ${progress.message}</p>
+                    `;
+                }
+                
+                status.innerHTML = progressHtml;
+
+                if (progress.status === 'completed' || progress.status === 'error' || progress.status === 'cancelled') {
+                    clearInterval(rematchProgressInterval);
+                    rematchProgressInterval = null;
+                    btn.disabled = false;
+                    btn.textContent = '🔍 重新匹配关键词';
+
+                    if (progress.status === 'completed') {
+                        setTimeout(() => {
+                            showRematchResults(progress.stats);
+                        }, 500);
+                    }
+                }
+
+                document.getElementById('btn-cancel-rematch')?.addEventListener('click', async function() {
+                    await apiRequest('/api/rematch/cancel', { method: 'POST' });
+                    clearInterval(rematchProgressInterval);
+                    rematchProgressInterval = null;
+                    btn.disabled = false;
+                    btn.textContent = '🔍 重新匹配关键词';
+                });
+
+            } catch (e) {
+                console.error('获取匹配进度失败:', e);
+            }
+        }, 1500);
+
+    } catch (e) {
+        status.className = 'status-msg error';
+        status.textContent = '❌ 请求失败: ' + e.message;
+        btn.disabled = false;
+        btn.textContent = '🔍 重新匹配关键词';
+    }
+});
+
+function showRematchResults(stats) {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    
+    const keywordDist = stats.keyword_distribution || {};
+    const topKeywords = Object.entries(keywordDist)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10);
+    
+    const categoryMatches = stats.category_matches || {};
+    
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>📊 关键词匹配结果</h3>
+                <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="results-summary">
+                    <div class="summary-card">
+                        <div class="summary-icon">📝</div>
+                        <div class="summary-info">
+                            <div class="summary-label">总新闻数</div>
+                            <div class="summary-value">${stats.total || 0}</div>
+                        </div>
+                    </div>
+                    <div class="summary-card success">
+                        <div class="summary-icon">✅</div>
+                        <div class="summary-info">
+                            <div class="summary-label">匹配成功</div>
+                            <div class="summary-value">${stats.matched || 0}</div>
+                        </div>
+                    </div>
+                    <div class="summary-card error">
+                        <div class="summary-icon">❌</div>
+                        <div class="summary-info">
+                            <div class="summary-label">未匹配</div>
+                            <div class="summary-value">${stats.not_matched || 0}</div>
+                        </div>
+                    </div>
+                    <div class="summary-card warning">
+                        <div class="summary-icon">🔄</div>
+                        <div class="summary-info">
+                            <div class="summary-label">状态变更</div>
+                            <div class="summary-value">${stats.updated || 0}</div>
+                        </div>
+                    </div>
+                    <div class="summary-card info">
+                        <div class="summary-icon">🌐</div>
+                        <div class="summary-info">
+                            <div class="summary-label">已翻译</div>
+                            <div class="summary-value">${stats.translated || 0}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="results-section">
+                    <h4>📈 匹配率统计</h4>
+                    <div class="chart-container">
+                        <div class="donut-chart">
+                            <svg viewBox="0 0 100 100">
+                                <circle cx="50" cy="50" r="40" fill="none" stroke="#eee" stroke-width="10"/>
+                                ${stats.total > 0 ? `
+                                    <circle cx="50" cy="50" r="40" fill="none" stroke="#4CAF50" stroke-width="10"
+                                        stroke-dasharray="${(stats.matched || 0) / stats.total * 251.2} 251.2"
+                                        transform="rotate(-90 50 50)"/>
+                                ` : ''}
+                            </svg>
+                            <div class="donut-center">
+                                <div class="donut-value">${stats.total > 0 ? Math.round((stats.matched || 0) / stats.total * 100) : 0}%</div>
+                                <div class="donut-label">匹配率</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="results-section">
+                    <h4>🔑 关键词分布（TOP 10）</h4>
+                    <div class="keyword-chart">
+                        ${topKeywords.length > 0 ? topKeywords.map(([kw, count], i) => `
+                            <div class="keyword-bar-item">
+                                <span class="keyword-name">${escapeHtml(kw)}</span>
+                                <div class="keyword-bar-container">
+                                    <div class="keyword-bar-fill" style="width: ${(count / Math.max(...topKeywords.map(k => k[1]))) * 100}%"></div>
+                                </div>
+                                <span class="keyword-count">${count}</span>
+                            </div>
+                        `).join('') : '<p class="empty-text">暂无关键词匹配数据</p>'}
+                    </div>
+                </div>
+
+                <div class="results-section">
+                    <h4>📊 分类匹配情况</h4>
+                    <div class="category-grid">
+                        ${Object.entries(categoryMatches).length > 0 ? Object.entries(categoryMatches).map(([cat, count]) => `
+                            <div class="category-item cat-${escapeHtml(cat) || '国际'}">
+                                <div class="category-name">${escapeHtml(cat)}</div>
+                                <div class="category-count">${count}</div>
+                            </div>
+                        `).join('') : '<p class="empty-text">暂无分类匹配数据</p>'}
+                    </div>
+                </div>
+
+                <div class="results-actions">
+                    <a href="/api/rematch/export" class="btn btn-primary">📥 导出CSV</a>
+                    <button class="btn btn-secondary" onclick="location.reload()">🔄 刷新页面</button>
+                    <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">关闭</button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+document.getElementById('btn-autostart').addEventListener('click', function() {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>🚀 自启动设置</h3>
+                <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="autostart-info">
+                    <div class="info-row">
+                        <span class="info-label">操作系统</span>
+                        <span class="info-value" id="os-info">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">自启动方式</span>
+                        <span class="info-value" id="method-info">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">自启动状态</span>
+                        <span class="info-value" id="status-info">-</span>
+                    </div>
+                </div>
+                <div class="autostart-actions">
+                    <button id="btn-enable-autostart" class="btn btn-primary" style="display: none;">✅ 启用自启动</button>
+                    <button id="btn-disable-autostart" class="btn btn-danger" style="display: none;">❌ 禁用自启动</button>
+                    <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">关闭</button>
+                </div>
+                <div class="autostart-tips">
+                    <h4>💡 提示</h4>
+                    <ul>
+                        <li>启用后，系统登录时会自动启动新闻速览服务</li>
+                        <li>Windows: 通过注册表实现，无需管理员权限</li>
+                        <li>Linux: 使用 systemd 用户服务</li>
+                        <li>macOS: 使用 launchd 配置</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    loadAutostartStatus();
+});
+
+async function loadAutostartStatus() {
+    try {
+        const resp = await apiRequest('/api/autostart/status');
+        const data = await resp.json();
+        if (data.ok) {
+            document.getElementById('os-info').textContent = data.os_display || data.os;
+            document.getElementById('method-info').textContent = data.method || '-';
+            document.getElementById('status-info').textContent = data.enabled ? '✅ 已启用' : '❌ 未启用';
+            
+            const btnEnable = document.getElementById('btn-enable-autostart');
+            const btnDisable = document.getElementById('btn-disable-autostart');
+            
+            if (data.enabled) {
+                btnEnable.style.display = 'none';
+                btnDisable.style.display = 'inline-block';
+            } else {
+                btnEnable.style.display = 'inline-block';
+                btnDisable.style.display = 'none';
+            }
+            
+            btnEnable?.addEventListener('click', async function() {
+                try {
+                    const resp = await apiRequest('/api/autostart/enable', { method: 'POST' });
+                    const data = await resp.json();
+                    if (data.ok) {
+                        alert('✅ 自启动已成功启用！');
+                        loadAutostartStatus();
+                    } else {
+                        alert('❌ 启用失败: ' + (data.error || '未知错误'));
+                    }
+                } catch (e) {
+                    alert('❌ 请求失败: ' + e.message);
+                }
+            });
+            
+            btnDisable?.addEventListener('click', async function() {
+                if (!confirm('确定要禁用自启动吗？')) return;
+                try {
+                    const resp = await apiRequest('/api/autostart/disable', { method: 'POST' });
+                    const data = await resp.json();
+                    if (data.ok) {
+                        alert('✅ 自启动已成功禁用！');
+                        loadAutostartStatus();
+                    } else {
+                        alert('❌ 禁用失败: ' + (data.error || '未知错误'));
+                    }
+                } catch (e) {
+                    alert('❌ 请求失败: ' + e.message);
+                }
+            });
+        }
+    } catch (e) {
+        console.error('获取自启动状态失败:', e);
+    }
+}
+
+function renderNewsList(newsList) {
+    const main = document.querySelector('main');
+    if (newsList.length === 0) {
+        main.innerHTML = `
+            <div class="empty-state">
+                <h2>📭 暂无符合条件的新闻</h2>
+                <p>当前日期范围内没有找到新闻，请尝试调整日期范围。</p>
+                <button id="btn-date-clear" class="btn btn-secondary" onclick="location.reload()">✖️ 清除筛选</button>
+            </div>
+        `;
+        return;
+    }
+
+    let html = '<div class="news-list">';
+    newsList.forEach(news => {
+        const isHighlighted = news.is_highlighted || news.is_strategy_matched;
+        const highlightBadge = isHighlighted ? '<span class="badge highlight-badge">🔥</span>' : '';
+        const analyzedBadge = news.is_analysis_done ? '<span class="badge analyzed">✓ 已深度分析</span>' : '';
+        const highlightType = news.is_strategy_matched ? '策略匹配' : (news.is_highlighted ? '关键词命中' : '');
+        const keywordBadge = isHighlighted ? `<span class="badge keyword-highlight">${highlightType}</span>` : '';
+        const category = escapeHtml(news.category) || '国际';
+
+        html += `
+            <div class="news-card ${isHighlighted}">
+                <div class="card-header">
+                    <div class="card-badges">
+                        ${highlightBadge}
+                        <span class="badge category cat-${category}">${category}</span>
+                        ${keywordBadge}
+                        ${analyzedBadge}
+                    </div>
+                    <a href="/news/${news.id}" class="news-link">
+                        <h2 class="news-title">${escapeHtml(news.title)}</h2>
+                    </a>
+                </div>
+                <div class="card-body">
+                    ${news.title !== news.original_title ? `<p class="original-title"><span class="label">原文标题:</span> ${escapeHtml(news.original_title)}</p>` : ''}
+                    <p class="news-summary">${escapeHtml(news.one_line_summary)}</p>
+                </div>
+                <div class="card-footer">
+                    <div class="card-meta">
+                        <span class="meta-item">
+                            <span class="meta-icon">📡</span>
+                            <span class="meta-label">来源:</span>
+                            <span class="meta-value">${escapeHtml(news.source) || '未知'}</span>
+                        </span>
+                        <span class="meta-item">
+                            <span class="meta-icon">🕐</span>
+                            <span class="meta-label">时间:</span>
+                            <span class="meta-value">${escapeHtml(news.publish_time) || '时间未知'}</span>
+                        </span>
+                    </div>
+                    <a href="/news/${news.id}" class="read-more">查看详情 →</a>
+                </div>
+            </div>
+        `;
+    });
+    html += '</div>';
+    main.innerHTML = html;
+}
+</script>
+</body>
+</html>
