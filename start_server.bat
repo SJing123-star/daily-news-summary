@@ -1,0 +1,3 @@
+@echo off
+set API_KEYS=sk-ws-H.EHXIMIH.9tGt.MEQCIEMXgNLZS5m6HAsQLKmOicEMhXGx1x3zjf4fcHBkXnHEAiBRbxbgXjCV9NPO7P1ih4E4ODI9h15Kcw6yunSAOaqoVg,sk-5fDBVfFzRwgpiHyFVvQrR5AyjsozXIsB8dHVvByhgogUStvj
+python app.py
