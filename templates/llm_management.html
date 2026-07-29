@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>大模型管理 - 每日新闻速览</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=4">
+    <script src="{{ url_for('static', filename='js/common.js') }}?v=1"></script>
+<script>
+        // API密钥通过用户配置或环境变量管理，不在前端硬编码
+    </script>
+</head>
+<body>
+    <div class="container">
+        <header class="site-header compact">
+            <div class="header-content">
+                <div class="header-left">
+                    <h1>⚙️ 系统管理</h1>
+                    <p class="subtitle">大语言模型配置、测试与监控</p>
+                </div>
+                <nav class="nav">
+                    <a href="{{ url_for('index') }}" class="nav-link">📋 新闻列表</a>
+                    <a href="{{ url_for('subscriptions') }}" class="nav-link active">⚙️ 系统管理</a>
+                </nav>
+            </div>
+        </header>
+
+        <nav class="admin-nav">
+            <a href="{{ url_for('subscriptions') }}" class="admin-nav-link">📡 新闻源管理</a>
+            <a href="{{ url_for('strategies') }}" class="admin-nav-link">🎯 策略管理</a>
+            <a href="{{ url_for('llm_management') }}" class="admin-nav-link active">🤖 模型管理</a>
+        </nav>
+
+        <main>
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchTab('list')">📋 模型列表</button>
+                <button class="tab-btn" onclick="switchTab('create')">➕ 新增模型</button>
+                <button class="tab-btn" onclick="switchTab('monitor')">📊 运行监控</button>
+            </div>
+
+            <div id="status" class="status-msg" style="display: none;"></div>
+
+            <div id="tab-list" class="tab-content">
+                <div class="section">
+                    <div class="section-header">
+                        <h2>已配置的大模型</h2>
+                        <button onclick="switchTab('create')" class="btn btn-primary">➕ 添加模型</button>
+                    </div>
+                    <div id="model-list" class="model-list">
+                        <div class="empty-state">
+                            <p>加载中...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-create" class="tab-content" style="display: none;">
+                <div class="section">
+                    <div class="section-header">
+                        <h2 id="form-title">新增大模型配置</h2>
+                    </div>
+                    <div class="config-card">
+                        <form id="model-form">
+                            <input type="hidden" id="model-id">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="model-name">模型名称 <span class="required">*</span></label>
+                                    <input type="text" id="model-name" required placeholder="如：OpenAI GPT-4o">
+                                </div>
+                                <div class="form-group">
+                                    <label for="model-provider">服务商 <span class="required">*</span></label>
+                                    <select id="model-provider" required>
+                                        <option value="openai">OpenAI</option>
+                                        <option value="deepseek">DeepSeek</option>
+                                        <option value="anthropic">Anthropic</option>
+                                        <option value="ollama">Ollama</option>
+                                        <option value="custom">自定义</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="model-model">模型标识 <span class="required">*</span></label>
+                                    <input type="text" id="model-model" required placeholder="如：gpt-4o-mini">
+                                </div>
+                                <div class="form-group">
+                                    <label for="model-base-url">API端点</label>
+                                    <input type="text" id="model-base-url" placeholder="如：https://api.openai.com/v1">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group full-width">
+                                    <label for="model-api-key">API密钥</label>
+                                    <input type="password" id="model-api-key" placeholder="sk-...">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="model-max-tokens">最大上下文长度</label>
+                                    <input type="number" id="model-max-tokens" value="2000" min="100" max="128000">
+                                </div>
+                                <div class="form-group">
+                                    <label for="model-timeout">响应超时时间(秒)</label>
+                                    <input type="number" id="model-timeout" value="60" min="5" max="300">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="model-temperature">Temperature</label>
+                                    <input type="number" id="model-temperature" value="0.7" step="0.1" min="0" max="2">
+                                </div>
+                                <div class="form-group">
+                                    <label>设为当前使用</label>
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" id="model-is-active">
+                                        <span>启用此模型</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="form-actions">
+                                <button type="button" onclick="resetForm()" class="btn btn-secondary">重置</button>
+                                <button type="submit" class="btn btn-primary">💾 保存配置</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-monitor" class="tab-content" style="display: none;">
+                <div class="section">
+                    <div class="section-header">
+                        <h2>模型运行监控</h2>
+                        <button onclick="refreshMonitor()" class="btn btn-secondary">🔄 刷新</button>
+                    </div>
+                    <div class="monitor-stats">
+                        <div class="stat-card">
+                            <div class="stat-icon">🤖</div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="stat-total">0</div>
+                                <div class="stat-label">总模型数</div>
+                            </div>
+                        </div>
+                        <div class="stat-card stat-success">
+                            <div class="stat-icon">✅</div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="stat-healthy">0</div>
+                                <div class="stat-label">健康状态</div>
+                            </div>
+                        </div>
+                        <div class="stat-card stat-warning">
+                            <div class="stat-icon">⚠️</div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="stat-warning">0</div>
+                                <div class="stat-label">警告状态</div>
+                            </div>
+                        </div>
+                        <div class="stat-card stat-error">
+                            <div class="stat-icon">❌</div>
+                            <div class="stat-info">
+                                <div class="stat-value" id="stat-error">0</div>
+                                <div class="stat-label">异常状态</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="monitor-list" id="monitor-list">
+                        <div class="empty-state">
+                            <p>加载中...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+<script>
+function switchTab(tabName) {
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+    event.target.classList.add('active');
+    document.getElementById('tab-' + tabName).style.display = 'block';
+    if (tabName === 'list') loadModels();
+    if (tabName === 'monitor') refreshMonitor();
+}
+
+function showStatus(msg, type = 'info') {
+    const el = document.getElementById('status');
+    el.textContent = msg;
+    el.className = 'status-msg ' + type;
+    el.style.display = 'block';
+    setTimeout(() => { el.style.display = 'none'; }, 5000);
+}
+
+function maskKey(key) {
+    if (!key || key.length < 8) return '***';
+    return key.slice(0, 4) + '***' + key.slice(-4);
+}
+
+function getHealthBadge(status) {
+    const badges = {
+        'healthy': '<span class="badge badge-success">✅ 健康</span>',
+        'warning': '<span class="badge badge-warning">⚠️ 警告</span>',
+        'error': '<span class="badge badge-error">❌ 异常</span>',
+        'unknown': '<span class="badge badge-default">❓ 未测试</span>'
+    };
+    return badges[status] || badges['unknown'];
+}
+
+async function loadModels() {
+    const listEl = document.getElementById('model-list');
+    try {
+        const resp = await apiRequest('/api/llm/configs');
+        const data = await resp.json();
+        if (!data.ok) throw new Error(data.error || '加载失败');
+        
+        const configs = data.configs;
+        if (configs.length === 0) {
+            listEl.innerHTML = `
+                <div class="empty-state">
+                    <h3>🤖 暂无模型配置</h3>
+                    <p>点击"添加模型"按钮创建第一个大模型配置</p>
+                    <button onclick="switchTab('create')" class="btn btn-primary">➕ 添加模型</button>
+                </div>
+            `;
+            return;
+        }
+
+        listEl.innerHTML = configs.map(cfg => `
+            <div class="model-card">
+                <div class="model-card-header">
+                    <div class="model-info">
+                        <h3 class="model-name">${escapeHtml(cfg.name)}</h3>
+                        <div class="model-tags">
+                            <span class="badge badge-${cfg.is_active ? 'success' : 'default'}">${cfg.is_active ? '使用中' : '未启用'}</span>
+                            <span class="badge">${escapeHtml(cfg.provider)}</span>
+                            ${getHealthBadge(cfg.health_status)}
+                        </div>
+                    </div>
+                    <div class="model-actions">
+                        <button class="btn btn-sm btn-secondary" onclick="testModel(${cfg.id})" title="测试连接">🧪 测试</button>
+                        <button class="btn btn-sm btn-secondary" onclick="editModel(${cfg.id})" title="编辑">✏️ 编辑</button>
+                        <button class="btn btn-sm ${cfg.is_active ? '' : 'btn-primary'}" onclick="setActiveModel(${cfg.id})" ${cfg.is_active ? 'disabled' : ''}>
+                            ${cfg.is_active ? '✅ 当前使用' : '⭐ 设为当前'}
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteModel(${cfg.id})" title="删除">🗑️</button>
+                    </div>
+                </div>
+                <div class="model-card-body">
+                    <div class="model-grid">
+                        <div class="model-item">
+                            <span class="model-label">模型标识</span>
+                            <span class="model-value">${escapeHtml(cfg.model)}</span>
+                        </div>
+                        <div class="model-item">
+                            <span class="model-label">API端点</span>
+                            <span class="model-value">${escapeHtml(cfg.base_url) || '默认'}</span>
+                        </div>
+                        <div class="model-item">
+                            <span class="model-label">API密钥</span>
+                            <span class="model-value">${escapeHtml(maskKey(cfg.api_key))}</span>
+                        </div>
+                        <div class="model-item">
+                            <span class="model-label">最大Token</span>
+                            <span class="model-value">${cfg.max_tokens}</span>
+                        </div>
+                        <div class="model-item">
+                            <span class="model-label">超时时间</span>
+                            <span class="model-value">${cfg.timeout}秒</span>
+                        </div>
+                        <div class="model-item">
+                            <span class="model-label">Temperature</span>
+                            <span class="model-value">${cfg.temperature}</span>
+                        </div>
+                    </div>
+                    ${cfg.last_test_time ? `
+                    <div class="model-test-info">
+                        <span>上次测试: ${escapeHtml(cfg.last_test_time)}</span>
+                        ${cfg.avg_response_time > 0 ? `<span>平均响应: ${cfg.avg_response_time.toFixed(0)}ms</span>` : ''}
+                    </div>` : ''}
+                </div>
+                <div class="test-result" id="test-result-${escapeHtml(String(cfg.id))}" style="display: none;"></div>
+            </div>
+        `).join('');
+    } catch (e) {
+        listEl.innerHTML = `<div class="empty-state"><p>加载失败: ${escapeHtml(e.message)}</p></div>`;
+    }
+}
+
+async function testModel(configId) {
+    const resultEl = document.getElementById('test-result-' + configId);
+    resultEl.style.display = 'block';
+    resultEl.className = 'test-result testing';
+    resultEl.innerHTML = `
+        <div class="test-header">⏳ 正在测试连接...</div>
+        <div class="test-details"><span class="test-loading">请稍候，正在发起测试请求...</span></div>
+    `;
+
+    try {
+        const resp = await apiRequest(`/api/llm/test/${configId}`, { method: 'POST' });
+        const data = await resp.json();
+        
+        if (data.ok) {
+            resultEl.className = 'test-result success';
+            resultEl.innerHTML = `
+                <div class="test-header">✅ 测试成功</div>
+                <div class="test-details">
+                    <span>响应时间: ${data.response_time}ms</span>
+                    <span>状态: 连接正常</span>
+                </div>
+            `;
+            showStatus('测试成功！', 'success');
+        } else {
+            resultEl.className = 'test-result error';
+            resultEl.innerHTML = `
+                <div class="test-header">❌ 测试失败</div>
+                <div class="test-details">
+                    <span>错误类型: ${escapeHtml(data.error_type || '未知错误')}</span>
+                    <span>错误信息: ${escapeHtml(data.error || '测试失败')}</span>
+                </div>
+            `;
+            showStatus('测试失败: ' + (data.error || '未知错误'), 'error');
+        }
+        setTimeout(() => loadModels(), 2000);
+    } catch (e) {
+        resultEl.className = 'test-result error';
+        resultEl.innerHTML = `
+            <div class="test-header">❌ 请求失败</div>
+            <div class="test-details"><span>${escapeHtml(e.message)}</span></div>
+        `;
+    }
+}
+
+function editModel(configId) {
+    apiRequest(`/api/llm/configs/${configId}`)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.ok) throw new Error(data.error);
+            const cfg = data.config;
+            document.getElementById('model-id').value = cfg.id;
+            document.getElementById('model-name').value = cfg.name;
+            document.getElementById('model-provider').value = cfg.provider;
+            document.getElementById('model-model').value = cfg.model;
+            document.getElementById('model-base-url').value = cfg.base_url || '';
+            // 不回显API密钥（安全考虑），只在密钥存在时显示提示
+            document.getElementById('model-api-key').value = '';
+            if (cfg.api_key && cfg.api_key !== '****') {
+                showStatus('注意：API密钥已配置，如需修改请重新输入', 'info');
+            }
+            document.getElementById('model-max-tokens').value = cfg.max_tokens;
+            document.getElementById('model-timeout').value = cfg.timeout;
+            document.getElementById('model-temperature').value = cfg.temperature;
+            document.getElementById('model-is-active').checked = !!cfg.is_active;
+            document.getElementById('form-title').textContent = '编辑大模型配置';
+            switchTab('create');
+        })
+        .catch(e => showStatus('加载失败: ' + e.message, 'error'));
+}
+
+async function deleteModel(configId) {
+    if (!confirm('确定要删除此模型配置吗？此操作不可撤销。')) return;
+    try {
+        const resp = await apiRequest(`/api/llm/configs/${configId}`, { method: 'DELETE' });
+        const data = await resp.json();
+        if (data.ok) {
+            showStatus('删除成功', 'success');
+            loadModels();
+        } else {
+            showStatus('删除失败: ' + (data.error || '未知错误'), 'error');
+        }
+    } catch (e) {
+        showStatus('请求失败: ' + e.message, 'error');
+    }
+}
+
+async function setActiveModel(configId) {
+    try {
+        const resp = await apiRequest(`/api/llm/configs/${configId}/activate`, { method: 'POST' });
+        const data = await resp.json();
+        if (data.ok) {
+            showStatus('已设为当前使用模型', 'success');
+            loadModels();
+        } else {
+            showStatus('操作失败: ' + (data.error || '未知错误'), 'error');
+        }
+    } catch (e) {
+        showStatus('请求失败: ' + e.message, 'error');
+    }
+}
+
+function resetForm() {
+    document.getElementById('model-form').reset();
+    document.getElementById('model-id').value = '';
+    document.getElementById('form-title').textContent = '新增大模型配置';
+}
+
+document.getElementById('model-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const configId = document.getElementById('model-id').value;
+    const modelData = {
+        name: document.getElementById('model-name').value,
+        provider: document.getElementById('model-provider').value,
+        model: document.getElementById('model-model').value,
+        base_url: document.getElementById('model-base-url').value,
+        api_key: document.getElementById('model-api-key').value,
+        max_tokens: parseInt(document.getElementById('model-max-tokens').value),
+        timeout: parseInt(document.getElementById('model-timeout').value),
+        temperature: parseFloat(document.getElementById('model-temperature').value),
+        is_active: document.getElementById('model-is-active').checked ? 1 : 0
+    };
+
+    try {
+        let url, method;
+        if (configId) {
+            url = `/api/llm/configs/${configId}`;
+            method = 'PUT';
+        } else {
+            url = '/api/llm/configs';
+            method = 'POST';
+        }
+        const resp = await apiRequest(url, {
+            method: method,
+            body: modelData
+        });
+        const data = await resp.json();
+        if (data.ok) {
+            showStatus(configId ? '更新成功' : '添加成功', 'success');
+            resetForm();
+            switchTab('list');
+        } else {
+            showStatus('保存失败: ' + (data.error || '未知错误'), 'error');
+        }
+    } catch (e) {
+        showStatus('请求失败: ' + e.message, 'error');
+    }
+});
+
+async function refreshMonitor() {
+    const listEl = document.getElementById('monitor-list');
+    try {
+        const resp = await apiRequest('/api/llm/configs');
+        const data = await resp.json();
+        if (!data.ok) throw new Error(data.error || '加载失败');
+        
+        const configs = data.configs;
+        const total = configs.length;
+        const healthy = configs.filter(c => c.health_status === 'healthy').length;
+        const warning = configs.filter(c => c.health_status === 'warning').length;
+        const error = configs.filter(c => c.health_status === 'error').length;
+
+        document.getElementById('stat-total').textContent = total;
+        document.getElementById('stat-healthy').textContent = healthy;
+        document.getElementById('stat-warning').textContent = warning;
+        document.getElementById('stat-error').textContent = error;
+
+        if (configs.length === 0) {
+            listEl.innerHTML = `
+                <div class="empty-state">
+                    <p>暂无监控数据</p>
+                </div>
+            `;
+            return;
+        }
+
+        listEl.innerHTML = `
+            <table class="monitor-table">
+                <thead>
+                    <tr>
+                        <th>模型名称</th>
+                        <th>服务商</th>
+                        <th>状态</th>
+                        <th>平均响应时间</th>
+                        <th>上次测试时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${configs.map(cfg => `
+                        <tr>
+                            <td><strong>${escapeHtml(cfg.name)}</strong></td>
+                            <td>${escapeHtml(cfg.provider)}</td>
+                            <td>${getHealthBadge(cfg.health_status)}</td>
+                            <td>${cfg.avg_response_time > 0 ? cfg.avg_response_time.toFixed(0) + 'ms' : '-'}</td>
+                            <td>${escapeHtml(cfg.last_test_time) || '未测试'}</td>
+                            <td>
+                                <button class="btn btn-sm btn-secondary" onclick="testModel(${cfg.id})">🧪 测试</button>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        `;
+    } catch (e) {
+        listEl.innerHTML = `<div class="empty-state"><p>加载失败: ${escapeHtml(e.message)}</p></div>`;
+    }
+}
+
+loadModels();
+</script>
+</body>
+</html>
