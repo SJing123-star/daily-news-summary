@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>策略管理 - 每日新闻速览</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=4">
+    <script src="{{ url_for('static', filename='js/common.js') }}?v=1"></script>
+<script>
+        // API密钥通过用户配置或环境变量管理，不在前端硬编码
+    </script>
+</head>
+<body>
+    <div class="container">
+        <header class="site-header compact">
+            <div class="header-content">
+                <div class="header-left">
+                    <h1>⚙️ 系统管理</h1>
+                    <p class="subtitle">关键词匹配策略配置与测试</p>
+                </div>
+                <nav class="nav">
+                    <a href="{{ url_for('index') }}" class="nav-link">📋 新闻列表</a>
+                    <a href="{{ url_for('subscriptions') }}" class="nav-link active">⚙️ 系统管理</a>
+                </nav>
+            </div>
+        </header>
+
+        <nav class="admin-nav">
+            <a href="{{ url_for('subscriptions') }}" class="admin-nav-link">📡 新闻源管理</a>
+            <a href="{{ url_for('strategies') }}" class="admin-nav-link active">🎯 策略管理</a>
+            <a href="{{ url_for('llm_management') }}" class="admin-nav-link">🤖 模型管理</a>
+        </nav>
+
+        <main>
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchTab('list')">📋 策略列表</button>
+                <button class="tab-btn" onclick="switchTab('create')">➕ 新增策略</button>
+                <button class="tab-btn" onclick="switchTab('test')">🧪 策略测试</button>
+            </div>
+
+            <div id="status" class="status-msg" style="display: none;"></div>
+
+            <div id="tab-list" class="tab-content">
+                <div class="section">
+                    <div class="section-header">
+                        <h2>关键词匹配策略</h2>
+                        <button onclick="switchTab('create')" class="btn btn-primary">➕ 新增策略</button>
+                    </div>
+
+                    <div class="strategy-list" id="strategy-list">
+                        <div class="strategy-card">
+                            <div class="strategy-header">
+                                <div class="strategy-info">
+                                    <span class="strategy-name">默认策略</span>
+                                    <span class="badge badge-default">default</span>
+                                </div>
+                            </div>
+                            <div class="strategy-body">
+                                <div class="strategy-row">
+                                    <span class="strategy-label">分词方式:</span>
+                                    <span class="strategy-value">简单分词</span>
+                                </div>
+                                <div class="strategy-row">
+                                    <span class="strategy-label">匹配模式:</span>
+                                    <span class="strategy-value">包含匹配</span>
+                                </div>
+                                <div class="strategy-row">
+                                    <span class="strategy-label">权重方法:</span>
+                                    <span class="strategy-value">综合权重</span>
+                                </div>
+                                <div class="strategy-row">
+                                    <span class="strategy-label">匹配阈值:</span>
+                                    <span class="strategy-value">0.5</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-create" class="tab-content" style="display: none;">
+                <div class="section">
+                    <div class="section-header">
+                        <h2>新增/编辑策略</h2>
+                    </div>
+
+                    <div class="config-card">
+                        <form id="strategy-form">
+                            <input type="hidden" id="strategy-site-type">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="strategy-name">策略名称 <span class="required">*</span></label>
+                                    <input type="text" id="strategy-name" required placeholder="如：英文网站策略">
+                                </div>
+                                <div class="form-group">
+                                    <label for="strategy-site-type-input">策略标识 <span class="required">*</span></label>
+                                    <input type="text" id="strategy-site-type-input" required placeholder="如：cybersecurity、technology，仅允许英文和下划线">
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="strategy-strategy-class">策略类 <span class="required">*</span></label>
+                                    <select id="strategy-strategy-class" required>
+                                        <option value="chinese">中文分词(jieba)</option>
+                                        <option value="english">英文分词</option>
+                                        <option value="default">默认策略</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="strategy-tokenizer">分词方式</label>
+                                    <select id="strategy-tokenizer">
+                                        <option value="chinese">中文分词(jieba)</option>
+                                        <option value="english">英文分词</option>
+                                        <option value="none">不分词</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="strategy-match-pattern">匹配模式</label>
+                                    <select id="strategy-match-pattern">
+                                        <option value="contains">包含匹配</option>
+                                        <option value="exact">精确匹配</option>
+                                        <option value="fuzzy">模糊匹配</option>
+                                        <option value="regex">正则表达式</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="strategy-match-scope">匹配范围</label>
+                                    <select id="strategy-match-scope">
+                                        <option value="title">仅匹配新闻标题</option>
+                                        <option value="content">仅匹配文章内容</option>
+                                        <option value="both">同时匹配标题和内容</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="strategy-weight-method">权重方法</label>
+                                    <select id="strategy-weight-method">
+                                        <option value="combined">综合权重(TF+位置)</option>
+                                        <option value="tf">词频(TF)</option>
+                                        <option value="position">位置权重</option>
+                                        <option value="idf">逆文档频率(IDF)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="strategy-threshold">匹配阈值</label>
+                                    <input type="number" id="strategy-threshold" value="0.5" min="0" max="1" step="0.1">
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="strategy-domain-patterns">域名匹配模式（每行一个，如：bbc.com）</label>
+                                <textarea id="strategy-domain-patterns" rows="3" placeholder="bbc.com&#10;nytimes.com&#10;cnn.com"></textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="strategy-keywords">匹配关键词（每行一个，匹配后标记为重要新闻）</label>
+                                <textarea id="strategy-keywords" rows="4" placeholder="中国&#10;台湾&#10;成都"></textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="strategy-stop-words">停用词（每行一个，匹配时忽略）</label>
+                                <textarea id="strategy-stop-words" rows="3" placeholder="the&#10;a&#10;is"></textarea>
+                            </div>
+
+                            <div class="form-actions">
+                                <button type="button" class="btn btn-secondary" onclick="switchTab('list')">取消</button>
+                                <button type="submit" class="btn btn-primary">💾 保存策略</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-test" class="tab-content" style="display: none;">
+                <div class="section">
+                    <div class="section-header">
+                        <h2>策略效果测试</h2>
+                    </div>
+
+                    <div class="config-card">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="test-site-type">选择策略</label>
+                                <select id="test-site-type">
+                                    <option value="">请选择策略</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>测试数据（JSON格式）</label>
+                            <textarea id="test-data" rows="10" placeholder='[{"title": "中国与美国举行会谈", "summary": "", "expected": true},&#10;{"title": "科技公司发布新产品", "summary": "", "expected": false},&#10;{"title": "台湾地区领导人访问", "summary": "", "expected": true}]'></textarea>
+                        </div>
+
+                        <div class="form-actions">
+                            <button id="btn-run-test" class="btn btn-primary">▶️ 运行测试</button>
+                        </div>
+                    </div>
+
+                    <div id="test-results" style="display: none;">
+                        <h3>📊 测试结果</h3>
+                        <div class="test-summary">
+                            <div class="test-stat">
+                                <span class="stat-label">准确率</span>
+                                <span class="stat-value" id="stat-accuracy">-</span>
+                            </div>
+                            <div class="test-stat">
+                                <span class="stat-label">精确率</span>
+                                <span class="stat-value" id="stat-precision">-</span>
+                            </div>
+                            <div class="test-stat">
+                                <span class="stat-label">召回率</span>
+                                <span class="stat-value" id="stat-recall">-</span>
+                            </div>
+                            <div class="test-stat">
+                                <span class="stat-label">F1分数</span>
+                                <span class="stat-value" id="stat-f1">-</span>
+                            </div>
+                        </div>
+                        <table class="test-table">
+                            <thead>
+                                <tr>
+                                    <th>标题</th>
+                                    <th>预期</th>
+                                    <th>实际</th>
+                                    <th>权重</th>
+                                    <th>匹配关键词</th>
+                                    <th>结果</th>
+                                </tr>
+                            </thead>
+                            <tbody id="test-results-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let strategies = [];
+
+        async function loadStrategies() {
+            try {
+                const resp = await apiRequest('/api/strategies');
+                const data = await resp.json();
+                if (data.ok) {
+                    strategies = data.strategies;
+                    renderStrategies();
+                    populateTestSelect();
+                }
+            } catch (e) {
+                console.error('加载策略失败:', e);
+            }
+        }
+
+        function renderStrategies() {
+            const container = document.getElementById('strategy-list');
+            let html = '';
+            
+            html += `
+                <div class="strategy-card">
+                    <div class="strategy-header">
+                        <div class="strategy-info">
+                            <span class="strategy-name">默认策略</span>
+                            <span class="badge badge-default">default</span>
+                        </div>
+                    </div>
+                    <div class="strategy-body">
+                        <div class="strategy-row">
+                            <span class="strategy-label">分词方式:</span>
+                            <span class="strategy-value">简单分词</span>
+                        </div>
+                        <div class="strategy-row">
+                            <span class="strategy-label">匹配模式:</span>
+                            <span class="strategy-value">包含匹配</span>
+                        </div>
+                        <div class="strategy-row">
+                            <span class="strategy-label">权重方法:</span>
+                            <span class="strategy-value">综合权重</span>
+                        </div>
+                        <div class="strategy-row">
+                            <span class="strategy-label">匹配阈值:</span>
+                            <span class="strategy-value">0.5</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            strategies.forEach(strategy => {
+                if (strategy.site_type === 'default') return;
+                
+                const tokenizerMap = { 'chinese': '中文分词', 'english': '英文分词', 'none': '不分词' };
+                const patternMap = { 'contains': '包含匹配', 'exact': '精确匹配', 'fuzzy': '模糊匹配', 'regex': '正则表达式' };
+                const weightMap = { 'combined': '综合权重', 'tf': '词频', 'position': '位置权重', 'idf': '逆文档频率' };
+                const scopeMap = { 'title': '仅标题', 'content': '仅内容', 'both': '标题+内容' };
+                const classMap = { 'chinese': '中文分词', 'english': '英文分词', 'default': '默认策略' };
+
+                html += `
+                    <div class="strategy-card">
+                        <div class="strategy-header">
+                            <div class="strategy-info">
+                                <span class="strategy-name">${escapeHtml(strategy.name)}</span>
+                                <span class="badge badge-${escapeHtml(strategy.site_type)}">${escapeHtml(strategy.site_type)}</span>
+                            </div>
+                            <div class="strategy-actions">
+                                <button class="btn-edit" onclick="editStrategy('${escapeHtml(strategy.site_type)}')">✏️</button>
+                                <button class="btn-delete" onclick="deleteStrategy('${escapeHtml(strategy.site_type)}')">🗑️</button>
+                            </div>
+                        </div>
+                        <div class="strategy-body">
+                            <div class="strategy-row">
+                                <span class="strategy-label">策略类:</span>
+                                <span class="strategy-value">${escapeHtml(classMap[strategy.strategy_class] || strategy.strategy_class)}</span>
+                            </div>
+                            <div class="strategy-row">
+                                <span class="strategy-label">分词方式:</span>
+                                <span class="strategy-value">${escapeHtml(tokenizerMap[strategy.tokenizer] || strategy.tokenizer)}</span>
+                            </div>
+                            <div class="strategy-row">
+                                <span class="strategy-label">匹配模式:</span>
+                                <span class="strategy-value">${escapeHtml(patternMap[strategy.match_pattern] || strategy.match_pattern)}</span>
+                            </div>
+                            <div class="strategy-row">
+                                <span class="strategy-label">匹配范围:</span>
+                                <span class="strategy-value">${escapeHtml(scopeMap[strategy.match_scope] || strategy.match_scope || '仅标题')}</span>
+                            </div>
+                            <div class="strategy-row">
+                                <span class="strategy-label">权重方法:</span>
+                                <span class="strategy-value">${escapeHtml(weightMap[strategy.weight_method] || strategy.weight_method)}</span>
+                            </div>
+                            <div class="strategy-row">
+                                <span class="strategy-label">匹配阈值:</span>
+                                <span class="strategy-value">${escapeHtml(String(strategy.threshold))}</span>
+                            </div>
+                            <div class="strategy-row">
+                                <span class="strategy-label">域名模式:</span>
+                                <span class="strategy-value">${escapeHtml((strategy.domain_patterns || []).join(', ') || '无')}</span>
+                            </div>
+                            <div class="strategy-row">
+                                <span class="strategy-label">关键词数:</span>
+                                <span class="strategy-value">${(strategy.keywords || []).length} 个</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function populateTestSelect() {
+            const select = document.getElementById('test-site-type');
+            select.innerHTML = '<option value="">请选择策略</option>';
+            strategies.forEach(strategy => {
+                select.innerHTML += `<option value="${escapeHtml(strategy.site_type)}">${escapeHtml(strategy.name)} (${escapeHtml(strategy.site_type)})</option>`;
+            });
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.style.display = 'none');
+            event.target.classList.add('active');
+            document.getElementById('tab-' + tab).style.display = 'block';
+            if (tab === 'list') {
+                loadStrategies();
+            }
+        }
+
+        function editStrategy(siteType) {
+            const strategy = strategies.find(s => s.site_type === siteType);
+            if (!strategy) return;
+
+            document.getElementById('strategy-site-type').value = siteType;
+            document.getElementById('strategy-name').value = strategy.name;
+            document.getElementById('strategy-site-type-input').value = strategy.site_type;
+            document.getElementById('strategy-strategy-class').value = strategy.strategy_class || 'default';
+            document.getElementById('strategy-tokenizer').value = strategy.tokenizer || (strategy.strategy_class === 'chinese' ? 'chinese' : 'english');
+            document.getElementById('strategy-match-pattern').value = strategy.match_pattern || 'contains';
+            document.getElementById('strategy-match-scope').value = strategy.match_scope || 'title';
+            document.getElementById('strategy-weight-method').value = strategy.weight_method || 'combined';
+            document.getElementById('strategy-threshold').value = strategy.threshold || 0.5;
+            document.getElementById('strategy-domain-patterns').value = (strategy.domain_patterns || []).join('\n');
+            document.getElementById('strategy-keywords').value = (strategy.keywords || []).join('\n');
+            document.getElementById('strategy-stop-words').value = (strategy.stop_words || []).join('\n');
+
+            switchTab('create');
+        }
+
+        async function deleteStrategy(siteType) {
+            if (!confirm('确定要删除该策略吗？')) return;
+
+            try {
+                const resp = await apiRequest('/api/strategies/' + siteType, { method: 'DELETE' });
+                const data = await resp.json();
+                if (data.ok) {
+                    showStatus('✅ 策略删除成功', 'success');
+                    loadStrategies();
+                } else {
+                    showStatus('❌ 删除失败: ' + (data.error || '未知错误'), 'error');
+                }
+            } catch (e) {
+                showStatus('❌ 请求失败: ' + e.message, 'error');
+            }
+        }
+
+        document.getElementById('strategy-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const siteType = document.getElementById('strategy-site-type').value;
+            const isEdit = !!siteType;
+
+            const strategy = {
+                name: document.getElementById('strategy-name').value.trim(),
+                site_type: document.getElementById('strategy-site-type-input').value.trim(),
+                strategy_class: document.getElementById('strategy-strategy-class').value,
+                tokenizer: document.getElementById('strategy-tokenizer').value,
+                match_pattern: document.getElementById('strategy-match-pattern').value,
+                match_scope: document.getElementById('strategy-match-scope').value,
+                weight_method: document.getElementById('strategy-weight-method').value,
+                threshold: parseFloat(document.getElementById('strategy-threshold').value),
+                domain_patterns: document.getElementById('strategy-domain-patterns').value.split('\n').map(s => s.trim()).filter(Boolean),
+                keywords: document.getElementById('strategy-keywords').value.split('\n').map(s => s.trim()).filter(Boolean),
+                stop_words: document.getElementById('strategy-stop-words').value.split('\n').map(s => s.trim()).filter(Boolean),
+            };
+
+            showStatus('⏳ 保存中...', '');
+
+            try {
+                let resp;
+                if (isEdit) {
+                    resp = await apiRequest('/api/strategies/' + siteType, {
+                        method: 'PUT',
+                        body: { strategy }
+                    });
+                } else {
+                    const existing = strategies.find(s => s.site_type === strategy.site_type);
+                    if (existing) {
+                        resp = await apiRequest('/api/strategies/' + strategy.site_type, {
+                            method: 'PUT',
+                            body: { strategy }
+                        });
+                    } else {
+                        strategies.push(strategy);
+                        resp = await apiRequest('/api/strategies', {
+                            method: 'POST',
+                            body: { strategies }
+                        });
+                    }
+                }
+
+                const data = await resp.json();
+                if (data.ok) {
+                    showStatus('✅ 策略保存成功', 'success');
+                    setTimeout(() => {
+                        document.getElementById('strategy-form').reset();
+                        document.getElementById('strategy-site-type').value = '';
+                        switchTab('list');
+                    }, 1000);
+                } else {
+                    showStatus('❌ 保存失败: ' + (data.error || '未知错误'), 'error');
+                }
+            } catch (e) {
+                showStatus('❌ 请求失败: ' + e.message, 'error');
+            }
+        });
+
+        document.getElementById('btn-run-test').addEventListener('click', async function() {
+            const siteType = document.getElementById('test-site-type').value;
+            const testDataJson = document.getElementById('test-data').value;
+
+            if (!siteType) {
+                showStatus('❌ 请先选择策略', 'error');
+                return;
+            }
+
+            let testData;
+            try {
+                testData = JSON.parse(testDataJson);
+            } catch (e) {
+                showStatus('❌ 测试数据JSON格式错误', 'error');
+                return;
+            }
+
+            showStatus('⏳ 测试中...', '');
+
+            try {
+                const resp = await apiRequest('/api/strategies/test', {
+                    method: 'POST',
+                    body: { site_type: siteType, test_data: testData }
+                });
+
+                const data = await resp.json();
+                if (data.ok) {
+                    renderTestResults(data.results);
+                    showStatus('✅ 测试完成', 'success');
+                } else {
+                    showStatus('❌ 测试失败: ' + (data.error || '未知错误'), 'error');
+                }
+            } catch (e) {
+                showStatus('❌ 请求失败: ' + e.message, 'error');
+            }
+        });
+
+        function renderTestResults(results) {
+            document.getElementById('test-results').style.display = 'block';
+            
+            document.getElementById('stat-accuracy').textContent = (results.accuracy * 100).toFixed(1) + '%';
+            document.getElementById('stat-precision').textContent = (results.precision * 100).toFixed(1) + '%';
+            document.getElementById('stat-recall').textContent = (results.recall * 100).toFixed(1) + '%';
+            document.getElementById('stat-f1').textContent = (results.f1_score * 100).toFixed(1) + '%';
+
+            const tbody = document.getElementById('test-results-body');
+            tbody.innerHTML = '';
+
+            results.results.forEach(item => {
+                const statusClass = item.correct ? 'correct' : 'wrong';
+                const statusIcon = item.correct ? '✅' : '❌';
+
+                tbody.innerHTML += `
+                    <tr class="${statusClass}">
+                        <td>${escapeHtml(item.title)}</td>
+                        <td>${item.expected ? '匹配' : '不匹配'}</td>
+                        <td>${item.actual ? '匹配' : '不匹配'}</td>
+                        <td>${item.weight}</td>
+                        <td>${escapeHtml((item.matched_keywords || []).join(', ')) || '-'}</td>
+                        <td>${statusIcon}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.style.display = 'block';
+            status.className = 'status-msg' + (type ? ' ' + type : '');
+            status.textContent = message;
+        }
+
+        loadStrategies();
+    </script>
+</body>
+</html>
